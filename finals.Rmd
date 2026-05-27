@@ -1,0 +1,977 @@
+---
+title: "DATASCI 306, Fall 2024, Final Group Project"
+author: "Group 28: Trisha Divecha, Taylor Lane, and Melissa Werkema"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(dplyr)
+```
+
+Throughout this course, you've dedicated yourself to refining your analytical abilities using R programming language. These skills are highly coveted in today's job market!  
+
+Now, for the semester project, you'll apply your learning to craft a compelling `Data Story` that can enrich your portfolio and impress prospective employers. Collaborating with a team (up to 5 members of your choosing), you'll construct a Data Story akin to the example provided here: <https://ourworldindata.org/un-population-2024-revision>
+
+Data is already in the `data` folder. This data is downloaded from: <https://population.un.org/wpp/Download/Standard/MostUsed/>
+
+You'll conduct Exploratory Data Analysis (EDA) on the provided data. The provided article already includes 6 diagrams.  Show either the line or the map option for these 6 charts. You may ignore the table view. I'm also interested in seeing how each team will expand upon the initial analysis and generate additional 12 insightful charts that includes US and any other region or country that the author did not show.  For e.g., one question you may want to answer is; US population is expected to increase to 421 million by 2100. You may want to show how the fertility rate and migration may be contributing to this increase in population.
+
+**Deliverable**
+
+**1. Requirement-1 (2 pt) **
+Import the data given in the .xlxs file into two separate dataframes;
+
+```{r}
+estimatesFile <- read_xlsx(
+  "data/finalData.xlsx",
+  sheet = "Estimates",
+  skip = 16,
+  col_names = T,
+  col_types = "text"
+)
+
+mediumVariantFile <- read_xlsx(
+  "data/finalData.xlsx",
+  sheet = "Medium variant",
+  skip = 16,
+  col_names = T,
+  col_types = "text"
+)
+
+head(estimatesFile) 
+head(mediumVariantFile)
+
+```
+
+* one dataframe to show data from the `Estimates` tab 
+* one dataframe to show data from the `Medium variant` tab 
+
+Hint: Some of the steps you may take while importing include:
+
+* skip the first several comment lines in the spread sheet
+* Importing the data as text first and then converting the relevant columns to different datatypes in step 2 below.
+
+
+**2. Requirement-2 (5 pt)**
+
+You should show at least 5 steps you adopt to clean and/or transform the data. Your cleaning should include:
+
+* Renaming column names to make it more readable; removing space, making it lowercase or completely giving a different short name; all are acceptable.
+* Removing rows that are irrelevant; look at rows that have Type value as 'Label/Separator'; are those rows required?
+* Removing columns that are redundant; For e.g., variant column
+* Converting text values to numeric on the columns that need this transformation
+
+You could also remove the countries/regions that you are not interested in exploring in this step and re-save a smaller file in the same `data` folder, with a different name so that working with it becomes easier going forward.
+
+Explain your reasoning for each clean up step.
+
+1. Rename column names for readability 
+
+```{r}
+
+estimatesFileCleaned <- estimatesFile %>%
+  rename_with(~ str_replace_all(., " ", "_")) %>%  
+  
+  rename_with(~ str_replace_all(., "[^[:alnum:]_]", "")) %>%  
+   rename_with(~ str_to_lower(.))
+
+mediumVariantFileCleaned <- mediumVariantFile %>%
+  rename_with(~ str_replace_all(., " ", "_")) %>%  
+  
+  rename_with(~ str_replace_all(., "[^[:alnum:]_]", "")) %>%  
+  rename_with(~ str_to_lower(.))
+
+
+head(estimatesFileCleaned)
+head(mediumVariantFileCleaned)
+
+```
+
+For this code chunk, we renamed our columns for readability by removing spaces and substituting underscores as well as made all variables lowercase. This ensures that they are all uniform. 
+
+2. Remove irrelevant rows
+
+```{r}
+
+estimatesFileCleaned <- estimatesFileCleaned %>%
+  filter(type != "Label/Separator")
+
+mediumVariantFileCleaned <- mediumVariantFileCleaned %>%
+  filter(type != "Label/Separator")
+
+estimatesFileCleaned
+mediumVariantFileCleaned
+
+```
+
+In this step, we removed irrelevant rows containing the label "Label/Separator", as these did not contribute to any of the data.
+
+3. Remove redundant columns
+
+```{r}
+
+estimatesFileCleaned <- estimatesFileCleaned %>%
+  select(-variant, -notes:-sdmx_code, -parent_code)
+
+mediumVariantFileCleaned <- mediumVariantFileCleaned %>%
+  select(-variant, -notes:-sdmx_code, -parent_code)
+
+head(estimatesFileCleaned)
+
+```
+For this step, we removed redundant rows that showed up more than once. 
+
+4. Convert relevant text columns to numeric and remove NA values
+
+```{r}
+estimatesFileCleaned <- estimatesFileCleaned %>%
+  mutate(across(
+    where(is.character), 
+    ~ ifelse(is.na(.), NA, as.numeric(.)),  
+    .names = "converted_{.col}"
+  ))
+
+mediumVariantFileCleaned <- mediumVariantFileCleaned %>%
+  mutate(across(
+    where(is.character), 
+    ~ ifelse(is.na(.), NA, as.numeric(.)),  
+    .names = "converted_{.col}"
+  ))
+
+head(estimatesFileCleaned)
+head(mediumVariantFileCleaned)
+
+```
+
+For this step, we converted our relevant text columns to numeric, and also removed all NA values as they appeared in the datasets. 
+
+5. Create separate data files
+
+```{r}
+countriesKept <- c("United States of America", "India", "Sweden", "Canada", "Thailand", "France" , "Japan", 
+                   "South Sudan", "Colombia", "Guatemala", "Eswatini", "World", "Niger", "Scotland", "Romania", "Switzerland", "Slovenia", "Singapore", "Burundi", "Qatar", "Ireland")
+
+filtered_df <- estimatesFileCleaned %>%
+  filter(region_subregion_country_or_area_ %in% countriesKept)
+
+write.csv(filtered_df, "data/filtered_estimates.csv", row.names = FALSE)
+
+```
+
+Here we created a separate data file for our own graphs which filtered out the specific countries whose data we wanted to utilize. 
+
+**3.  Requirement-3 (3 pt)**
+Replicate the 6 diagrams shown in the article.  Show only the '2024' projection values where ever you have both '2022' and '2024' displayed. 
+Show only the diagrams that are shown on the webpage with default options. 
+
+Diagram 1:
+
+```{r}
+mediumVariantFileCleaned %>% 
+  
+  filter(region_subregion_country_or_area_ == "World") %>%
+  
+  ggplot(aes(x = as.numeric(year), y = as.numeric(total_population_as_of_1_july_thousands)/ 1e6)) +
+  geom_line(color = "blue", size = 1) +  
+  labs(
+    title = "How do UN Population projections compare\nto the previous revision?",
+    x = "Year",
+    y = "Population (billions)",
+  ) +
+  theme_minimal() 
+
+```
+
+2. Diagram 2
+*note - see if we learned strip.text
+*note - fix x axis to be on top three graphs
+
+```{r}
+
+mediumVariantFileCleaned %>%
+  
+  filter(region_subregion_country_or_area_ %in% c("World", "Africa", "Asia", "Europe", "Northern America", "Latin America and the Caribbean")) %>%
+  
+  ggplot(aes(x = as.numeric(year), y = as.numeric(total_population_as_of_1_july_thousands) / 1e6)) +
+  geom_line(color = "blue", size = 1) + 
+  labs(
+    title = "How do UN Population projections compare\n to the prevous revision?",
+    x = "",
+    y = "Population (billions)"
+  ) +
+  facet_wrap(~region_subregion_country_or_area_, ncol = 3, scales = "free_y"
+             ) +
+  theme(strip.text = element_text(size = 7))
+
+```
+
+Diagram 3:
+
+```{r}
+thirdGraphCountries <- c("Africa", "World", "Asia", "Latin America and the Caribbean", "Northern America", "Europe")
+
+thirdGraphData1 <- mediumVariantFileCleaned %>%
+    filter(region_subregion_country_or_area_ %in% thirdGraphCountries,
+           year >= 1950 & year <= 2100) %>%
+    mutate(year = as.numeric(year)) %>%
+    select (
+      region_subregion_country_or_area_,
+      total_fertility_rate_live_births_per_woman,
+      year
+    )
+
+thirdGraphData2 <- estimatesFileCleaned %>%
+    filter(region_subregion_country_or_area_ %in% thirdGraphCountries,
+           year >= 1950 & year <= 2100) %>%
+    mutate(year = as.numeric(year)) %>%
+    select (
+      region_subregion_country_or_area_,
+      total_fertility_rate_live_births_per_woman,
+      year
+    )
+
+combinedData <- bind_rows(thirdGraphData1, thirdGraphData2)
+
+combinedData <- combinedData %>%
+  mutate(
+    total_fertility_rate_live_births_per_woman = as.numeric(total_fertility_rate_live_births_per_woman)
+  )
+
+ggplot(combinedData, aes(x = year)) +
+  geom_line(
+    aes(
+      y = total_fertility_rate_live_births_per_woman,
+      color = region_subregion_country_or_area_, 
+      group = region_subregion_country_or_area_  
+    ),
+    size = 1
+  ) +
+   scale_x_continuous(
+     breaks = c(1950, 1980, 2000, 2020, 2040, 2060, 2080, 2100),
+     labels = c("1950", "1980", "2000", "2020", "2040", "2060", "2080", "2100")
+   ) +
+  #  scale_y_continuous(
+  #   breaks = seq(1, 6, by = 1),  
+  #   labels = seq(1, 6, by = 1) 
+  # ) +
+  labs(
+    title = "Fertility rate: children per woman, 1950 to 2100",
+    x = "Year",
+    y = "Total Fertility Rate (Live Births per Woman)",
+    color = "Region"
+  ) +
+  theme_minimal()
+
+```
+Diagram 4:
+
+```{r}
+fourthGraphCountries <- c("India", "China")
+
+fourthGraphData1 <- mediumVariantFileCleaned %>%
+    filter(region_subregion_country_or_area_ %in% fourthGraphCountries) %>%
+    mutate(year = as.numeric(year)) %>%
+    select (
+      region_subregion_country_or_area_,
+      total_population_as_of_1_july_thousands,
+      year
+    )
+
+fourthGraphData2 <- estimatesFileCleaned %>%
+    filter(region_subregion_country_or_area_ %in% fourthGraphCountries) %>%
+    mutate(year = as.numeric(year)) %>%
+    select (
+      region_subregion_country_or_area_,
+      total_population_as_of_1_july_thousands,
+      year
+    )
+
+combinedData <- bind_rows(fourthGraphData1, fourthGraphData2)
+
+combinedData <- combinedData %>%
+  mutate(
+    total_population_as_of_1_july_thousands = as.numeric(total_population_as_of_1_july_thousands)
+  )
+
+ggplot(combinedData, aes(x = year, y = total_population_as_of_1_july_thousands, color = region_subregion_country_or_area_)) +
+  geom_jitter(width = 1, height = 1, size = 1, alpha = 0.8) +
+  scale_x_continuous(
+    breaks = c(1950, 1980, 2000, 2020, 2040, 2060, 2080, 2100),
+    labels = c("1950", "1980", "2000", "2020", "2040", "2060", "2080", "2100")
+  ) +
+  scale_y_continuous(
+     limits = c(0, 1800000),
+     breaks =seq(0, 1600000, by = 200000),
+    labels = c("0","200 million", "400 million", "600 million", "800 million", "1 billion", "1.2 billion", "1.4 billion", "1.6 billion")
+  ) +
+  labs(
+    title = "Population, 1950 to 2100",
+    x = "Year",
+    y = "Population",
+    color = "Country"
+  ) 
+
+```
+
+Diagram 5:
+
+```{r}
+thirdGraphCountries <- c("Africa", "World", "Asia", "Latin America and the Caribbean", "Northern America", "Europe")
+
+
+thirdGraphData2 <- estimatesFileCleaned %>%
+    filter(region_subregion_country_or_area_ %in% thirdGraphCountries,
+           year >= 1950 & year <= 2100) %>%
+    mutate(year = as.numeric(year)) %>%
+    select (
+      region_subregion_country_or_area_,
+      life_expectancy_at_birth_both_sexes_years,
+      year
+    )
+
+thirdGraphData2 <- thirdGraphData2 %>%
+  mutate(
+    life_expectancy_at_birth_both_sexes_years = as.numeric(life_expectancy_at_birth_both_sexes_years)
+  )
+
+ggplot(thirdGraphData2, aes(x = year)) +
+  geom_line(
+    aes(
+      y = life_expectancy_at_birth_both_sexes_years,
+      color = region_subregion_country_or_area_, 
+      group = region_subregion_country_or_area_  
+    ),
+    size = 1
+  ) +
+  scale_x_continuous(
+    breaks = c(1950, 1960, 1970, 1980, 1990, 2000, 2010, 2023),
+    labels = c("1950", "1960", "1970", "1980", "1990", "2000", "2010", "2023")
+  ) +
+   scale_y_continuous(
+    limits = c(0, 90),
+    breaks =seq(0, 70, by = 10),
+    labels = c("0 years","10 years", "20 years", "30 years", "40 years", "50 years", "60 years", "70 years") 
+  ) +
+  labs(
+    title = "Life expectancy at birth, 1950 to 2023",
+    x = "Year",
+    y = "Life expectancy",
+    color = "Region"
+  ) +
+  theme_minimal()
+```
+
+Diagram 6: 
+
+```{r}
+sixthGraphCountries <- c("Ukraine")
+
+sixthGraphData <- estimatesFileCleaned %>%
+    filter(region_subregion_country_or_area_ %in% sixthGraphCountries) %>%
+    mutate(year = as.numeric(year)) %>%
+    select (
+      region_subregion_country_or_area_,
+      net_number_of_migrants_thousands,
+      year
+    )
+
+sixthGraphData <- sixthGraphData %>%
+  mutate(
+    net_number_of_migrants_thousands = as.numeric(net_number_of_migrants_thousands)
+  )
+
+ggplot(sixthGraphData, aes(x = year, y = net_number_of_migrants_thousands / 1000)) +
+  geom_line(
+    linewidth = 1
+  ) +
+  scale_x_continuous(
+    breaks = c(1950, 1960, 1970, 1980, 1990, 2000, 2010, 2023),
+    labels = c("1950", "1960", "1970", "1980", "1990", "2000", "2010", "2023")
+  ) +
+   scale_y_continuous(
+    limits = c(-7, 1), 
+    breaks = seq(-5, 0, by = 1),  
+    labels = c("-5 million", "-4 million", "-3 million", "-2 million", "-1 million", "0") 
+  ) +
+  labs(
+    title = "Annual net migration, 1950 to 2023",
+    x = "Year",
+    y = "Migrants",
+    color = "Region"
+  ) +
+  theme_minimal()
+
+
+```
+
+
+**4.  Requirement-4 (12 pt)**
+
+Select United States related data, and any other country or region(s) of your choosing to perform EDA. Chart at least 12 additional diagrams that may show relationships like correlations, frequencies, trend charts, between various variables with plots of at least 3 different types (line, heatmap, pie, etc.). Every plot should have a title and the x/y axis should have legible labels without any label overlaps for full credit. 
+
+Summarize your interpretations after each chart.
+
+```{r}
+mortalitycountries <- c("United States of America", "Burundi", "Canada", "Eswatini")
+mortalityData <- read.csv("data/filtered_estimates.csv")
+
+mortalityData <- mortalityData %>%
+    filter(region_subregion_country_or_area_ %in% mortalitycountries) %>%
+    select (
+      region_subregion_country_or_area_,
+      year,
+      male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births,
+      female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births
+    )
+
+head(mortalityData)
+```
+
+Chart 1: Male vs Female Mortality Rates by Selected Country
+
+```{r}
+ggplot(mortalityData, aes(x = reorder(region_subregion_country_or_area_, male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births))) +
+  
+  geom_bar(aes(y = male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births, fill = "Male Mortality"), stat = "identity", position = "dodge") +
+  
+  geom_bar(aes(y = female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births, fill = "Female Mortality"), stat = "identity", position = "dodge") +
+  labs(
+    title = "Male vs Female Mortality Rates by Selected Country",
+    x = "Country",
+    y = "Mortality Rate (per 1,000 live births, and before age 60)",
+    fill = "Legend"
+  ) +
+  coord_flip()
+```
+
+Interpretation: We created this chart to compare female versus male mortality rates in countries that vary in wealth. For every country in this chart, male mortality rates are higher than female mortality rates. The country with the biggest gap between the two is the U.S. This is likely due to occupational, genetic, and behavioral differences (i.e. men are more likely to engage in reckless driving). There does not seem to be a correlation between the gap in mortality rates and the wealth of the country. However, there does appear to be a correlation between the value of both mortality rates and the wealth of the country. Eswatini and Burundi are the poorest countries on the chart and both their male and female mortality rates are more than double the wealthier countries on the chart, the U.S. and Canada. This is likely due to a lack of access to healthcare, economic and political instability, malnutrition, and various other characteristics that go hand in hand with poverty.
+
+
+Chart 2: Projected Male vs Female Mortality Rates Over Time by Selected Country
+
+
+```{r}
+
+#str(mediumVariantFileCleaned)
+
+firstmediumVariantFileCleaned <- mediumVariantFileCleaned %>%
+  filter(region_subregion_country_or_area_ %in% mortalitycountries) %>%
+    select (
+      region_subregion_country_or_area_,
+      year,
+      male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births,
+      female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births
+    )
+firstmediumVariantFileCleaned$year <- as.numeric(as.character(firstmediumVariantFileCleaned$year))
+
+firstmediumVariantFileCleaned$male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births <- as.numeric(as.character(firstmediumVariantFileCleaned$male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births))
+
+firstmediumVariantFileCleaned$female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births <- as.numeric(as.character(firstmediumVariantFileCleaned$female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births))
+
+ggplot(firstmediumVariantFileCleaned, aes(x = year)) +
+  
+  geom_line(aes(y = male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births, color = "Male Mortality", group = region_subregion_country_or_area_), size = 1) +
+  
+  geom_line(aes(y = female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births, color = "Female Mortality", group = region_subregion_country_or_area_), size = 1, linetype = "dashed") +
+  
+  facet_wrap(~ region_subregion_country_or_area_, ncol = 2, scales = "free_y") + 
+  
+  scale_x_continuous(breaks = seq(min(firstmediumVariantFileCleaned$year), max(firstmediumVariantFileCleaned$year), by = 10)) +  
+  labs(
+    title = "Projected Male vs Female Mortality Rates by Selected Country",
+    x = "Year",
+    y = "Mortality Rate (per 1,000 live births)",
+    color = "Legend"
+  ) +
+  theme(
+    legend.position = "bottom",
+  )
+```
+Interpretation: The second chart shows the projected change in female and male mortality rates for each country. We created this chart to see whether or not the gap between the rates will close and if both rates would decrease. This chart shows that if the predictions are correct, all mortality rates in every country will decrease significantly. The rates in the U.S. and Canada will decrease to around 20 and the rates in Eswatini and Burundi will decrease to 100-200. The latter is still very high, but we must take the previous graph into account. Since Eswatini and Burundi’s rates started higher, it would take longer for them to decrease to 20. Another important finding from this graph is that in the U.S. and Canada, the gap between the two rates is expected to close by around 3000. In Eswatini and Burundi, the projections don’t show any change in the gap. This might be because the U.S. and Canada’s social climate can support reducing the factors contributing to the gap like occupational differences. In the U.S., we have already seen a significant increase in men choosing careers in women-dominated fields and vice versa. In countries like Eswatini and Burundi that have bigger issues like economics and political instability, the difference in occupations might not be a focus. 
+
+
+
+
+Chart 3: Male vs Female Mortality Rates Over Time by Selected Country
+
+```{r}
+ggplot(mortalityData, aes(x = year)) +
+  geom_line(aes(y = male_mortality_before_age_60_deaths_under_age_60_per_1000_male_live_births, color = "Male Mortality", group = region_subregion_country_or_area_), size = 1) +
+  geom_line(aes(y = female_mortality_before_age_60_deaths_under_age_60_per_1000_female_live_births, color = "Female Mortality", group = region_subregion_country_or_area_), size = 1, linetype = "dashed") +
+  facet_wrap(~ region_subregion_country_or_area_, ncol = 2, scales = "free_y") +
+  labs(
+    title = "Male vs Female Mortality Rates Over Time",
+    x = "Year",
+    y = "Mortality Rate (per 1,000 live births)",
+    color = "Legend"
+  ) +
+  theme(
+    legend.position = "bottom",
+  )
+```
+
+Interpretation: In the third chart, we displayed each country’s male and female mortality rates over time. We did this to see if these rates were impacted by cultural, economic, and political factors. The first thing we noticed in this chart is that every country had a spike in mortality rates in 2020, which is explained by the COVID-19 pandemic. Besides this spike, the rates in both the U.S. and Canada have steadily decreased since 1970. However, in Eswatini, mortality rates rose between 1990 and 2005. After researching, I found that this was caused by the HIV/AIDS epidemic. In the 2010s, Eswatini took measures to combat this epidemic, eventually leading to a decrease in mortality rates once again. Burundi’s mortality rates remained high until around 2010. Research explains this as the results of the Burundian Civil War (1993), Malaria, and other factors linked to the country’s high poverty level. Even so, its efforts for improvement in the 2010s has helped its mortality rates to decrease, though it will take time for the country to recover from the impacts of these traumatic events.
+
+
+
+Chart 4: Change In Median Age Over Time by Selected Country
+
+
+```{r}
+medianAgeData <- read.csv("data/filtered_estimates.csv")
+
+medianAgeData <- medianAgeData %>%
+  filter(region_subregion_country_or_area_ %in% c("United States of America", "India", "Canada", "Eswatini", "Niger", "Burundi", "Qatar")) %>%
+  select(region_subregion_country_or_area_, year, median_age_as_of_1_july_years)
+
+medianAgeData$year <- as.numeric(medianAgeData$year)
+ggplot(medianAgeData, aes(x = year, y = median_age_as_of_1_july_years, color = region_subregion_country_or_area_)) +
+  geom_line(size = .5) + 
+  geom_point(size = 1) +   
+  labs(
+    title = "Change in Median Age Over Time",
+    x = "Year",
+    y = "Median Age (Years)",
+    color = "Country"
+  ) +
+  theme_minimal() +  
+  theme(
+    legend.position = "bottom",
+    text = element_text(size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1)  
+  )
+
+```
+
+
+Interpretation: We chose to make this graph because we wanted to explore the correlation between median age and poverty levels. A lower median age indicates a younger population and could suggest a lower life expectancy. The countries with the lowest median ages are Niger, Burundi, and South Sudan. All of these are under 20. These are also the countries that are most impoverished, so this indicates a strong correlation between median age and poverty levels. A higher median age indicates an older population and could suggest a higher life expectancy. The countries with the highest median ages are Canada, the U.S., and Ireland.These are also the countries that are the least impoverished, so this also supports the correlation. Qatar is an interesting point in this graph. It is currently categorized as one of the richest countries in the world, so why was is its median age so low? After some researching, we found that Qatar started oil production in the 1970s which caused its economy to skyrocket.It makes sense then that we see a rise in median age around this point in Qatar's history. It would take a bit of time for Qatar's population to age up even though the country's life expectancy has probably increased, which is why it's not as high as countries like the U.S. and Canada which have been relatively financially stable for a long period of time.
+
+
+Charts 5 and 6: Migration vs Under 5 Deaths by Selected Country (diff formats)
+
+```{r}
+#Graph 1
+
+filtered_df_subset <- filtered_df %>%
+  filter(region_subregion_country_or_area_ %in% c("United States of America", "India", "Canada", "Eswatini", "Niger", "Burundi", "Qatar")) 
+
+filtered_df_subset <- filtered_df_subset %>%
+  mutate(
+    net_migration_rate_per_1000_population = as.numeric(net_migration_rate_per_1000_population),
+    underfive_mortality_deaths_under_age_5_per_1000_live_births = as.numeric(underfive_mortality_deaths_under_age_5_per_1000_live_births), year = as.numeric(year)
+  )
+ggplot(filtered_df_subset, aes(x = net_migration_rate_per_1000_population, 
+                               y = underfive_mortality_deaths_under_age_5_per_1000_live_births, 
+                               color = region_subregion_country_or_area_)) +
+  geom_jitter(width = 1, height = 1, size = 1, alpha = 0.8) +
+  
+  labs(
+    title = "Net Migration vs Mortality Rate Under 5 Years by Country",
+    x = "Net Migration Rate (per 1,000 population)",
+    y = "Mortality Rate Under 5 Years (per 1,000 live births)",
+    color = "Country"
+  ) +
+ theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    #axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(size = 8),
+    axis.title.y = element_text(size = 8)
+)
+
+#Graph 2
+
+ggplot(filtered_df_subset, aes(x = year)) +
+  geom_line(aes(y = net_migration_rate_per_1000_population, color = region_subregion_country_or_area_, group = region_subregion_country_or_area_), linewidth = .5, linetype = "solid") +
+  labs(
+    title = "Net Migration Rate Per Country",
+    x = "Year",
+    y = "Rate (per 1,000 population)",
+    color = "Country"
+  ) +
+  scale_x_continuous(
+    breaks = c(1950, 1960, 1970, 1980, 1990, 2000, 2010, 2023),
+    labels = c("1950", "1960", "1970", "1980", "1990", "2000", "2010", "2023")
+  ) + 
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+Interpretation: The first graph is designed to show the correlation between Net Migration Rate and Mortality Rate Under 5 Years. Net migration is immigration-emigration, so a high net migration means that there are more people entering than leaving. We created this chart to test our hypothesis that countries with a low mortality rate under 5 years were more likely to have a high net migration and vice versa. This is because the mortality rate under 5 years is a good indicator of safety. When children die this young, it's usually due to a lack of access to healthcare or traumatic events. This chart shows that our hypothesis is likely correct. Qatar, one of the wealthiest countries in the world, has the highest net migration rates of all of the countries on the graph. Additionally, the majority of its points have a mortality rate under 5 years that is less than 100. The outlier points for Qatar are likely from earlier years when the country was much poorer. On the opposite end of the spectrum, nearly all of Niger's points have a mortality rate under 5 years that is above 300 and a net migration that is around 0. This supports our hypothesis that people probably don't choose to immigrate to countries with high mortality rates under 5 years. The other countries follow similar patterns.It is interesting that the U.S. and Canada, while having low mortality rates under 5 years, also have very low net migration rates. I think this is a result of the countries enacting stricter immigration policies.
+
+The second graph shows the changes in net migration rate over time for each country. This makes it more clear that Qatar has the highest net migration rates of all of the countries on the graph for most of recent history. However, around 2020 its rate dropped into the negatives. After doing more research, we learned that prior to 2020, Qatar had very strict labor laws in place that prevented employees from switching jobs and leaving the country. Since these policies were removed in 2020, it makes sense that there would be an influx of emigration from the country, making the net migration negative. Burundi is the poorest country in the chart, so it makes sense that the lowest net migration displayed is from them. It also makes sense that India, Canada, and the U.S. have relatively stable net migration rates, as these countries are very stable economically and politically. It's interesting that immigration is such a hot topic in politics in the U.S. right now since according to these charts, our net migration rate has always been low.
+
+
+Charts 7 and 8: Teen Pregnancies by Selected Country
+
+```{r}
+
+#Graph 1:
+
+filtered_df <- filtered_df %>%
+  mutate(
+    teen_pregnancy_rate = (converted_births_by_women_aged_15_to_19_thousands / converted_births_thousands) * 100, year = as.numeric(year)
+  ) 
+
+filtered_countries <- filtered_df %>%
+  filter(region_subregion_country_or_area_ %in% c("United States of America", "Sweden", "Switzerland", "Niger", "Guatemala", "South Sudan", "India"))
+
+ggplot(filtered_countries, aes(x = year, y = teen_pregnancy_rate, color = region_subregion_country_or_area_)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Teen Pregnancy Rate by Country",
+    x = "Year",
+    y = "Teen Pregnancy Rate (%)",
+    color = "Country"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  ) +
+   scale_x_continuous(
+     breaks = seq(min(filtered_df$year), max(filtered_df$year), by = 5)
+   ) 
+
+filtered_df_2023 <- filtered_countries %>%
+  filter(year == 2023)
+
+#Graph 2:
+
+ggplot(filtered_df_2023, aes(x = region_subregion_country_or_area_, y = teen_pregnancy_rate)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  coord_flip() + 
+  labs(
+    title = "Teen Pregnancy Rate by Country (2023)",
+    x = "Country",
+    y = "Teen Pregnancy Rate (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
+
+Interpretation: We chose to make this chart to explore teen pregnancy rates in each country. We calculated teen pregnancy rates by dividing the converted births by women aged 15 to 19 by converted births and multiplying by 100. The first chart shows how teen pregnancy rates have changed over time. This shows that in the 1950s-1970s, most countries had a rate greater than 10% with the exception of Switzerland. This is likely because getting married and having children young was a social norm in this time period. As countries became more modernized, teen pregnancy became more of a social taboo. After doing some research, we also found that India banned child marriage in 2006, which is when we see a sharp decline in teen pregnancy rate for the country. In the U.S., child marriage is still legal in many states so the decline is likely just due to the change in societal norms. 
+In the second chart, we see a more clear correlation between a country's wealth and its teen pregnancy rate. We limited this chart to one year so that the difference would be more clear. South Sudan, Guatemala, and Niger all have rates over 15%, and these are also the poorest countries in the grouping. Switzerland and Sweden, the wealthiest, have rates below 2%. Contraceptives are legal in all of these countries, however access to them is limited in South Sudan, Guatemala, and Niger. Child marriage is banned in all three of these countries, however they struggle to have the resources to enforce these laws.
+
+
+
+Chart 9 and 10: Mean age child bearing over time (for world, up to date and projected)
+*note: also can use contraceptive research here to explain findings
+*note - combine two graphs into 1
+
+```{r}
+
+# World mean age childbearing years over time
+
+estimatesFileCleaned %>%
+  
+  filter(region_subregion_country_or_area_ == "World") %>% 
+  
+    ggplot(aes(x = as.numeric(year), y = as.numeric(mean_age_childbearing_years))) +
+  geom_line(color = "lightpink", size = 1) +
+  labs(
+    title = "World Mean Age Childbearing Years Over Time",
+    x = "Year",
+    y = "Mean Age Childbearing",
+  ) +
+  theme_minimal() 
+
+# Projected world mean age childbearing years over time
+
+mediumVariantFileCleaned %>%
+  
+  filter(region_subregion_country_or_area_ == "World") %>% 
+  
+    ggplot(aes(x = as.numeric(year), y = as.numeric(mean_age_childbearing_years))) +
+  geom_line(color = "darkseagreen", size = 1) +
+  labs(
+    title = "Projected World Mean Age Childbearing Years Over Time",
+    x = "Year",
+    y = "Mean Age Childbearing",
+  ) +
+  theme_minimal() 
+
+```
+
+Interpretation: The graph above was created to display the change in the mean childbearing age from 1950 to 2023, and the adjacent graph to display the change in the projected mean childbearing age from 2024-2100. From the first graph, we can see that the childbearing age averaged around 29 in the 1950s, and declined to about 27 over the course of 50 years. A possible explanation of this trend would be the "Sexual Revolution", which began around 1960 and continued well into the following decades. The Sexual Revolution was a period in time where societal attitudes toward sex became more open, particularly for women, partially due in part to the recently widespread access of contraceptives. This may explain why the mean childbearing age decreased during this time period, as women were more sexually active. The increase after this decline may be attributed to the introduction of more efficient forms of birth control, and to the increase in women pursuing an education earlier in life over motherhood. Regarding the projected values, the UN predicts that the mean childbearing age will somewhat linearly increase over time, eventually rising past the age of 30. Possible reasons for this prediction may include the increase in predicted median age, as we will discuss later, or perhaps the increase in women in the workforces. 
+
+
+Chart 11: Childbearing mean age over time (by country)
+
+```{r}
+
+# 1950-2023
+
+filtered_df %>%
+  filter(region_subregion_country_or_area_ %in% c("South Sudan", "Niger", "Switzerland", "Eswatini", "United States of America", "Canada")) %>%
+
+  ggplot(aes(x = as.numeric(year), y = as.numeric(mean_age_childbearing_years))) +
+  geom_line(color = "lightpink", size = 1) + 
+  labs(
+    title = "How does mean childbearing age compare across countries?",
+    x = "Year",
+    y = "Mean Age Childbearing"
+  ) +
+   facet_wrap(~region_subregion_country_or_area_, ncol = 3, scales = "free_y") +
+   theme_minimal() 
+
+# Projected (2024-2100)
+
+mediumVariantFileCleaned %>%
+  filter(region_subregion_country_or_area_ %in% c("South Sudan", "Niger", "Switzerland", "Eswatini", "United States of America", "Canada")) %>%
+
+  ggplot(aes(x = as.numeric(year), y = as.numeric(mean_age_childbearing_years))) +
+  geom_line(color = "darkseagreen", size = 1) + 
+  labs(
+    title = "How does projected mean childbearing age\n compare across countries?",
+    x = "Year",
+    y = "Mean Age Childbearing"
+  ) +
+   facet_wrap(~region_subregion_country_or_area_, ncol = 3, scales = "free_y") +
+   theme_minimal()     
+
+
+
+
+```
+
+Interpretation: The above graphs represent the change in the mean childbearing age across 1950-2023, and then the projected change in mean childbearing age from 2024-2100. As we can see, the United States, Switzerland, and Canada have relatively similar patterns in their graphs, as they all experience a gradual increase in mean age. This may be due to the fact these countries have lower poverty rates in comparison to the opposing three, meaning that they may have better access to contraceptives. Additionally, wealthier countries generally have better higher education systems, which could be a factor in women deciding to have children at a later age. Eswatini, South Sudan, and Niger all have had a declining mean childbearing age as of the more recent years. This may be due to high fertility rates as a result of limited access to contraceptives, or as a result of cultural norms ingrained in these societies to produce at a younger age. A possible explanation for the initially high mean childbearing age of these poorer countries may result from expectations for women to bear children well into their 30s in earlier decades for survival. Over time, this need may have decreased, resulting in the mean age decreasing. 
+
+
+```{r}
+
+mediumVariantFileCleaned %>%
+  filter(region_subregion_country_or_area_ %in% c("World")) %>%
+
+  ggplot(aes(x = as.numeric(median_age_as_of_1_july_years), y = as.numeric(mean_age_childbearing_years))) +
+  geom_point(color = "lightblue")+ 
+  labs(
+    title = "Projected Median Age VS Projected Mean Age Childbearing",
+    x = "Projected Median Age",
+    y = "Projected Mean Age Childbearing"
+  ) +
+   theme_minimal()
+
+```
+
+Interpretation: The above graph displays the relationship between the projected mean age childbearing and the projected median age. In short, the graph suggests there is a strong correlation between the projected median age increasing and the projected mean age childbearing increasing. Intuitively, this make sense, as an increase in the projected median age would suggest that women have a longer window to reproduce, resulting in a higher projected mean childbearing age. With a higher projected median age, there may also be a higher life expectancy. With a higher life expectancy, women may choose to delay childbearing for education or costs of living. 
+
+Chart 13: Fertility Rate Over Time (for selected countries)
+*note - add projected values alongside
+
+```{r}
+
+# Fertility Rate Over Time
+
+filtered_df %>%
+  filter(region_subregion_country_or_area_ %in% c("South Sudan", "Niger", "Switzerland", "Burundi", "United States of America", "Ireland", "India", "Japan")) %>%
+
+ggplot(aes(x = as.numeric(year), y = region_subregion_country_or_area_, fill = as.numeric(total_fertility_rate_live_births_per_woman))) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "Fertility Rate") + 
+  labs(
+    title = "Fertility Rate Across Selected Countries Over Time",
+    x = "Year",
+    y = "Country"
+  ) +
+  theme_minimal() 
+
+# Projected Fertility Rate Over Time
+
+mediumVariantFileCleaned %>%
+  filter(region_subregion_country_or_area_ %in% c("South Sudan", "Niger", "Switzerland", "Burundi", "United States of America", "Ireland", "India", "Japan")) %>%
+
+ggplot(aes(x = as.numeric(year), y = region_subregion_country_or_area_, fill = as.numeric(total_fertility_rate_live_births_per_woman))) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient(low = "lightblue", high = "darkblue", name = "Fertility Rate") + 
+  labs(
+    title = "Projected Fertility Rate Across Selected Countries Over Time",
+    x = "Year",
+    y = "Country"
+  ) +
+  theme_minimal() 
+
+
+
+```
+
+
+
+Interpretation: The above graphs represent the fertility rate of the selected countries over time, as well as their projected output, as projected by the UN. We can see that lower income countries, such as Burundi, Niger, and South Sudan tend to have higher fertility rates. As explained in the above interpretations for the mean childbearing age, this may be a result of cultural expectations for women or reduced accessibility to contraceptives and/or education. Higher income countries in this graph have a lower fertility rate, as explained by their accessibility to these commodities, as well as their highest cost of income (and ultimately in raising children). Interestingly enough, in the projected results, each of these countries is predicted to have decreasing fertility rates. A possible explanation for this may be increased accessibility to contraceptives and projected higher life expectancy due to improved healthcare systems in the future and increased accessibility of education for every country. 
+
+Interpretation: 
+
+**5. Requirement-5 (2 pt)**
+Having developed a strong understanding of your data, you'll now create a machine learning (ML) model to predict a specific metric. This involves selecting the most relevant variables from your dataset.
+
+The UN's World Population Prospects provides a range of projected scenarios of population change. These rely on different assumptions in fertility, mortality and/or migration patterns to explore different demographic futures. Check this link for more info: https://population.un.org/wpp/DefinitionOfProjectionScenarios
+
+You can choose to predict the same metric the UN provides (e.g., future population using fertility, mortality, and migration data). Compare your model's predictions to the UN's. 
+
+How significantly do your population projections diverge from those of the United Nations? Provide a comparison of the two.  If you choose a different projection for which there is no UN data to compare with, then this comparison is not required.
+
+```{r}
+library(tidyverse)
+library(caret)
+
+
+machineLearningData <- estimatesFileCleaned %>%
+  filter(region_subregion_country_or_area_ %in% c("World")) %>%
+  select(mean_age_childbearing_years, total_fertility_rate_live_births_per_woman, life_expectancy_at_birth_both_sexes_years,
+                 crude_birth_rate_births_per_1000_population) %>%
+  mutate(
+    mean_age_childbearing_years = as.numeric(mean_age_childbearing_years),
+    total_fertility_rate_live_births_per_woman = as.numeric(total_fertility_rate_live_births_per_woman), 
+    life_expectancy_at_birth_both_sexes_years = as.numeric(life_expectancy_at_birth_both_sexes_years),
+    crude_birth_rate_births_per_1000_population = as.numeric(crude_birth_rate_births_per_1000_population)
+  )
+
+ggplot(machineLearningData, aes(x = mean_age_childbearing_years, 
+                               y = total_fertility_rate_live_births_per_woman)) +
+  geom_jitter(width = 1, height = 1, size = 1, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(
+    title = "Mean Age of Childbearing vs Total Fertility Rate",
+    x = "Mean Age of Childbearing (years)",
+    y = "Total Fertility Rate (live births per woman)"
+  ) +
+ theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 12)
+)
+
+ggplot(machineLearningData, aes(x = mean_age_childbearing_years, 
+                               y = life_expectancy_at_birth_both_sexes_years)) +
+  geom_jitter(width = 1, height = 1, size = 1, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(
+    title = "Mean Age of Childbearing vs Life Expectancy at Birth",
+    x = "Mean Age of Childbearing (years)",
+    y = "Life Expectancy at Birth (years)"
+  ) +
+ theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 12)
+)
+
+ggplot(machineLearningData, aes(x = mean_age_childbearing_years, 
+                               y = crude_birth_rate_births_per_1000_population)) +
+  geom_jitter(width = 1, height = 1, size = 1, alpha = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(
+    title = "Mean Age Childbearing vs Crude Birth Rates",
+    x = "Mean Age of Childbearing (years)",
+    y = "Crude Birth Rates"
+    )+
+ theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 12)
+)
+
+```
+```{r}
+set.seed(123)  
+train_index <- createDataPartition(machineLearningData$mean_age_childbearing_years, p = 0.8, list = FALSE)
+train_data <- machineLearningData[train_index, ]
+test_data <- machineLearningData[-train_index, ]
+
+lm_model <- lm(mean_age_childbearing_years ~ total_fertility_rate_live_births_per_woman + 
+                 life_expectancy_at_birth_both_sexes_years + 
+                 crude_birth_rate_births_per_1000_population, 
+               data = train_data)
+
+summary(lm_model)  
+
+predictions <- predict(lm_model, newdata = test_data)
+
+predict_future_fertility <- seq(2.5, 1.5, length.out = 77)  
+predict_future_life_exp <- seq(70, 85, length.out = 77)     
+predict_future_birth_rate <- seq(25, 10, length.out = 77)
+
+future_years <- data.frame(
+  year = 2024:2100,
+  total_fertility_rate_live_births_per_woman = predict_future_fertility,  
+  life_expectancy_at_birth_both_sexes_years = predict_future_life_exp,   
+  crude_birth_rate_births_per_1000_population = predict_future_birth_rate 
+)
+future_predictions <- predict(lm_model, newdata = future_years)
+
+worldData <- mediumVariantFileCleaned %>%
+  filter(region_subregion_country_or_area_ == "World") %>%
+  mutate(
+    year = as.numeric(year),
+    mean_age_childbearing_years = as.numeric(mean_age_childbearing_years)
+  )
+
+
+future_years$predicted_mean_age_childbearing <- future_predictions
+
+ggplot() +
+  geom_line(data = future_years, aes(x = year, y = predicted_mean_age_childbearing, color = "Group 28 Predicted"), size = 1) +
+  geom_line(data = worldData, aes(x = year, y = mean_age_childbearing_years, color = "UN Predicted"), size = 1, linetype = "dashed") +
+  labs(title = "Predicted Mean Age of Childbearing (2024–2100)",
+       x = "Year",
+       y = "Mean Age of Childbearing",
+       color = "Legend"
+       ) +
+  theme_minimal()
+
+```
+
+
+
+
+
+**6.  Requirement-5 (1 pt)**
+
+**Conclusion**
+
+Your analysis should conclude with a summary of key findings. I'm especially interested in any novel insights you uncover that go beyond the article's original conclusions.
+
+Key Findings:
+
+ Mortality rates are impacted by a country’s wealth and are severely affected by pandemics and war. There is no correlation between the gap between male and female mortality rates and a country’s wealth, however more impoverished countries will struggle to close the gap in the future because it is not a priority for them. All mortality rates are expected to decrease significantly by 3000. Teen pregnancy rates are higher in countries that are less wealthy, likely due to a lack of contraceptives, education, and resources to enforce child marriage laws. Teen pregnancy rates have decreased in wealthier countries over time. This is probably due to a change in social norms, increased education, and access to contraceptives/abortion. Net migration is likely to be lower in countries that have a high mortality rate under age 5. Wealthier countries like the U.S. and Canada also have low migration rates due to immigration restrictions. Net migration rates are more stable in countries that have a stable economy and political climate. There is a strong correlation between median age and the poverty of a country. Impoverished countries had lower median ages than wealthier countries. There is a strong correlation between projected median age and projected mean age childbearing. This suggests that as life expectancy increases, women choose to have children further on in life. There is a general trend that as of current, lower income countries have a declining mean childbearing ages, while higher income countries have increasing mean childbearing ages. This may be due to reduced access to education, contraceptives, and a stronger enforcement of gender roles. Fertility rates are predicted to decrease across all countries, suggesting that as healthcare systems become more developed and as life expectancy increases, fertility rates will decline. 
+
+
+ In our machine learning model we predicted the mean age of childbearing using total fertility rate, life expectancy at birth and crude birth rate as predictors. When graphing the results of our model and comparing them to the predictions made by the UN there was one key difference. Our model predicted that the mean age of child bearing would be about three years older than what the UN predicted. This could be the result of many different factors, for example a difference in predictors used. Our model doesn’t take political climate and social beliefs into account. For example, the U.S. is in the midst of a conservative swing, so it would not be surprising if this shifted the mean age of child bearing younger, while our model predicted an older mean age.
+
+
+**7. Extra Credit (1 pt)**
+Develop an interactive Shiny app to visualize your machine learning model's projections. The app must include at least one interactive widget (e.g., dropdown, radio buttons, text input) allowing users to select a variable value (such as country/region) and view the corresponding projections.
+
+
+**Submission**
+
+* You will upload the zip file containing finals.Rmd file and its PDF as a deliverable to Canvas. If you created a shiny app for predictions, you will add those files also to your zip file.
+
+* You will present your findings by creating a video of a maximum 15 minutes duration, explaining the code and the workings of your project; all team members should explain their part in the project to receive credit. You will share the URL of the video on Canvas for us to evaluate. An ideal way to create this video would be to start a Zoom meeting, start recording, and then every member share their screen and explain their contribution.
+
+
+It is not necessary to prepare slides (if you do it doesn't hurt) for the presentation. You may speak by showing the diagrams and/or code from your Posit project.  Every team member should explain their part in the project along with the insights they derived by explaining the charts and summaries for full credit to each member.
+
+Your project will be evaluated for clean code, meaningful/insightful EDA and predictions.
+
+**Note:**
+
+* Each plot must be accompanied by a summary that clarifies the rationale behind its creation and what insights the plot unveils. Every diagram should possess standalone significance, revealing something more compelling than the other charts
+* After the deadline, instructors will select the top three outstanding analytics projects. The teams responsible for these exceptional analyses will have their video shared with the class
+
+**We will not accept submissions after the deadline; December 10th 4 pm**
+
+
+
